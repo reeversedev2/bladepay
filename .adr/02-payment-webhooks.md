@@ -93,7 +93,40 @@ A worker crash or broker redelivery is expected. Therefore broker delivery is at
 
 ## Payment state transitions
 
-The payment state machine is the authority for applying provider events. Each event handler must:
+The payment state machine defined by the payment lifecycle design is the authority for applying provider events. Its initial states are `Created`, `AuthorizationPending`, `Authorized`, `CapturePending`, `Captured`, `Failed`, `Cancelled`, and `Unknown`.
+
+The valid transitions are:
+
+```text
+Created
+  ├──> AuthorizationPending
+  ├──> Failed
+  └──> Cancelled
+
+AuthorizationPending
+  ├──> Authorized
+  ├──> Failed
+  └──> Unknown
+
+Authorized
+  ├──> CapturePending
+  └──> Cancelled
+
+CapturePending
+  ├──> Captured
+  ├──> Failed
+  └──> Unknown
+
+Unknown
+  ├──> Authorized
+  ├──> Captured
+  ├──> Failed
+  └──> Unknown
+```
+
+`Unknown` means that the gateway cannot determine the provider outcome and reconciliation is required; it is not a definitive failure. Authorization timeout reconciliation may result in `Authorized` or `Failed`. Capture timeout reconciliation may result in `Captured` or `Failed`.
+
+Each event handler must:
 
 - Load the payment using a stable payment identifier.
 - Validate the requested transition against the current state.
@@ -101,13 +134,15 @@ The payment state machine is the authority for applying provider events. Each ev
 - Record the provider event ID as having been applied, or use an equivalent unique operation key.
 - Make all external side effects idempotent.
 
+A payment cannot be captured unless authorization succeeded, unless the provider supports direct capture. `Captured` is set only after a verified provider response or webhook confirms capture. A timeout must not be treated as a definitive failure. Terminal states cannot be changed by an older or duplicate event.
+
 A duplicate or already-applied event is treated as a successful no-op. A stale, contradictory, or invalid transition must not move the payment backwards or create side effects. It must be recorded for investigation according to the event policy.
 
-The implementation must explicitly document the valid transition matrix for authorization, capture, failure, cancellation, refund, and any provider-specific states before production launch.
+Every transition must be recorded with a timestamp and source, such as an API response, webhook, reconciliation worker, or manual operation. Refunds and reversals are separate operations and are outside this initial lifecycle.
 
 ## Reconciliation
 
-Bladepay will reconcile a payment through the provider API when the result is uncertain, including a request timeout after submission, an ambiguous provider response, an event that cannot be correlated, or an event-processing failure that cannot safely determine the final state.
+Bladepay will reconcile a payment through the provider API when the result is uncertain, including a request timeout after submission, an ambiguous provider response, an event that cannot be correlated, or an event-processing failure that cannot safely determine the final state. A timeout must not be inferred as success or failure solely from the absence of a provider response.
 
 Reconciliation must be:
 
@@ -117,7 +152,11 @@ Reconciliation must be:
 - Protected against stale provider responses.
 - Recorded with the provider request ID where available.
 
-Each provider integration must define its reconciliation schedule, maximum duration, terminal conditions, and escalation behavior. Reconciliation must use the same payment state-transition rules as webhook processing.
+For a capture timeout, the payment remains `CapturePending` or becomes `Unknown`; the client receives `202 Accepted` with the payment ID and current status. The reconciliation worker queries the provider using the provider transaction ID or supported lookup mechanism. A confirmed capture becomes `Captured`, a confirmed failure becomes `Failed`, and an unresolved result remains `Unknown` with an operational alert.
+
+If the provider does not support idempotent retries or status lookup, Bladepay must not automatically retry a potentially successful charge. It must reconcile through a webhook, provider report, settlement file, or manual review. Reconciliation must use the same payment state-transition rules as webhook processing.
+
+Each provider integration must define its reconciliation schedule, maximum duration, terminal conditions, and escalation behavior.
 
 ## HTTP response behavior
 
@@ -187,11 +226,10 @@ An end-to-end test must verify that a webhook is not acknowledged before durable
 The following are implementation details rather than blockers to this architectural decision:
 
 1. Final inbox retention period and payload encryption policy.
-2. Exact payment state-transition matrix.
-3. RabbitMQ exchange, queue, retry, and dead-letter topology.
-4. Provider-specific status codes and response bodies.
-5. Reconciliation intervals and escalation thresholds.
-6. Secret-manager integration and rotation runbook.
-7. Dashboard and alert thresholds.
+2. RabbitMQ exchange, queue, retry, and dead-letter topology.
+3. Provider-specific status codes and response bodies.
+4. Reconciliation intervals and escalation thresholds.
+5. Secret-manager integration and rotation runbook.
+6. Dashboard and alert thresholds.
 
 These must be documented before the first provider integration is promoted to production.
