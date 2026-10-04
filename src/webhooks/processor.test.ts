@@ -1,63 +1,110 @@
 import { describe, expect, test } from "vitest";
-import { applyPaymentEvent } from "./processor";
+import { applyPaymentEvent, type PaymentEvent } from "./processor";
 
-describe("should transition CapturePending correctly", () => {
-  test("should transition from CapturePending to Captured when capture succeeded event", () => {
-    expect(
-      applyPaymentEvent(
-        {
-          id: "123",
-          state: "CapturePending",
-        },
-        {
-          id: "2312",
-          type: "capture.succeeded",
-          paymentId: "123",
-        },
-        new Set(["123", "1323"]),
-      ),
-    ).toMatchObject({
-      kind: "applied",
-      state: "Captured",
+const paymentId = "123";
+
+const createEvent = (
+  type: PaymentEvent["type"],
+  id: string,
+  eventPaymentId = paymentId,
+): PaymentEvent => ({
+  id,
+  type,
+  paymentId: eventPaymentId,
+});
+
+describe("applyPaymentEvent", () => {
+  describe("applied events", () => {
+    test("transitions CapturePending to Captured after capture succeeds", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "CapturePending" },
+          createEvent("capture.succeeded", "event_101"),
+          new Set(),
+        ),
+      ).toEqual({ kind: "applied", state: "Captured" });
+    });
+
+    test("transitions CapturePending to Failed after capture fails", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "CapturePending" },
+          createEvent("capture.failed", "event_102"),
+          new Set(),
+        ),
+      ).toEqual({ kind: "applied", state: "Failed" });
+    });
+
+    test("transitions AuthorizationPending to Authorized after authorization succeeds", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "AuthorizationPending" },
+          createEvent("authorization.succeeded", "event_103"),
+          new Set(),
+        ),
+      ).toEqual({ kind: "applied", state: "Authorized" });
+    });
+
+    test("transitions AuthorizationPending to Failed after authorization fails", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "AuthorizationPending" },
+          createEvent("authorization.failed", "event_104"),
+          new Set(),
+        ),
+      ).toEqual({ kind: "applied", state: "Failed" });
+    });
+
+    test("transitions Unknown to Captured after capture succeeds", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "Unknown" },
+          createEvent("capture.succeeded", "event_105"),
+          new Set(),
+        ),
+      ).toEqual({ kind: "applied", state: "Captured" });
     });
   });
 
-  test("should transition from CapturePending to Failed when capture failed event", () => {
-    expect(
-      applyPaymentEvent(
-        {
-          id: "123",
-          state: "CapturePending",
-        },
-        {
-          id: "2312",
-          type: "capture.failed",
-          paymentId: "123",
-        },
-        new Set(["123", "1323"]),
-      ),
-    ).toMatchObject({
-      kind: "applied",
-      state: "Failed",
+  describe("duplicate events", () => {
+    test("returns duplicate without changing the payment state", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "Unknown" },
+          createEvent("capture.succeeded", "event_106"),
+          new Set(["event_106"]),
+        ),
+      ).toEqual({ kind: "duplicate", state: "Unknown" });
     });
   });
-  test("should respond with duplicate payload when duplicate even id comes", () => {
-    expect(
-      applyPaymentEvent(
-        {
-          id: "123",
-          state: "Unknown",
-        },
-        {
-          id: "event_102",
-          type: "capture.succeeded",
-          paymentId: "123",
-        },
-        new Set(["event_101", "event_102"]),
-      ),
-    ).toMatchObject({
-      kind: "duplicate",
-      state: "Unknown",
+
+  describe("rejected events", () => {
+    test("rejects an event belonging to a different payment", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "CapturePending" },
+          createEvent("capture.succeeded", "event_107", "456"),
+          new Set(),
+        ),
+      ).toEqual({
+        kind: "rejected",
+        state: "CapturePending",
+        reason: "Event belongs to a different payment",
+      });
+    });
+
+    test("rejects a valid event from an invalid state", () => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state: "Captured" },
+          createEvent("capture.failed", "event_108"),
+          new Set(),
+        ),
+      ).toEqual({
+        kind: "rejected",
+        state: "Captured",
+        reason: "Invalid Transition",
+      });
     });
   });
 });
