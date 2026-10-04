@@ -1,0 +1,23 @@
+{
+  "name": "bladepay",
+  "version": "0.1.0",
+  "description": "",
+  "homepage": "https://github.com/reeversedev2/bladepay#readme",
+  "bugs": {
+    "url": "https://github.com/reeversedev2/bladepay/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reeversedev2/bladepay.git"
+  },
+  "license": "MIT",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.3"
+  }
+}
