@@ -41,10 +41,7 @@ describe("should transition CapturePending correctly", () => {
       state: "Failed",
     });
   });
-});
-
-describe("should transition Unknown correctly", () => {
-  test("should reject Unknown to Captured when capture succeeded event", () => {
+  test("should respond with duplicate payload when duplicate even id comes", () => {
     expect(
       applyPaymentEvent(
         {
@@ -52,14 +49,14 @@ describe("should transition Unknown correctly", () => {
           state: "Unknown",
         },
         {
-          id: "2312",
+          id: "event_102",
           type: "capture.succeeded",
           paymentId: "123",
         },
-        new Set(["123", "1323"]),
+        new Set(["event_101", "event_102"]),
       ),
     ).toMatchObject({
-      kind: "rejected",
+      kind: "duplicate",
       state: "Unknown",
     });
   });

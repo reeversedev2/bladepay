@@ -25,6 +25,12 @@ export type PaymentEvent = {
   paymentId: string;
 };
 
+type RejectedApplyResult = {
+  kind: "rejected";
+  state: PaymentState;
+  reason: string;
+};
+
 type ApplyResult =
   | {
       kind: "applied";
@@ -34,22 +40,17 @@ type ApplyResult =
       kind: "duplicate";
       state: PaymentState;
     }
-  | {
-      kind: "rejected";
-      state: PaymentState;
-      reason: string;
-    };
+  | RejectedApplyResult;
 
-const assertIsDuplicateEvent = () => {};
-
-const assertEventIdIsFromSamePayment = (
+const validateEventPaymentId = (
   event: PaymentEvent,
   payment: Payment,
-) => {
+): RejectedApplyResult | undefined => {
   if (event.paymentId !== payment.id) {
     return {
       kind: "rejected",
       state: payment.state,
+      reason: "Event belongs to a different payment",
     };
   }
 };
@@ -65,7 +66,12 @@ export function applyPaymentEvent(
       state: payment.state,
     };
   }
-  assertEventIdIsFromSamePayment(event, payment);
+  const paymentMatchResult = validateEventPaymentId(event, payment);
+
+  if (paymentMatchResult) {
+    return paymentMatchResult;
+  }
+
   switch (event.type) {
     case "authorization.succeeded":
       if (payment.state === "AuthorizationPending")
@@ -90,7 +96,7 @@ export function applyPaymentEvent(
         reason: "Invalid Transition",
       };
     case "capture.succeeded":
-      if (payment.state === "CapturePending")
+      if (["CapturePending", "Unknown"].includes(payment.state))
         return {
           kind: "applied",
           state: "Captured",
