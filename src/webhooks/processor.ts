@@ -43,6 +43,13 @@ export function applyPaymentEvent(
   event: PaymentEvent,
   processedEventIds: Set<string>,
 ): ApplyResult {
+  if (processedEventIds.has(event.id)) {
+    return {
+      kind: "duplicate",
+      state: payment.state,
+    };
+  }
+
   switch (event.type) {
     case "authorization.succeeded":
       if (payment.state === "AuthorizationPending")
@@ -50,12 +57,6 @@ export function applyPaymentEvent(
           kind: "applied",
           state: "Authorized",
         };
-      if (payment.state === "Authorized") {
-        return {
-          kind: "duplicate",
-          state: payment.state,
-        };
-      }
       return {
         kind: "rejected",
         state: payment.state,
@@ -67,12 +68,6 @@ export function applyPaymentEvent(
           kind: "applied",
           state: "Failed",
         };
-      if (payment.state === "Failed") {
-        return {
-          kind: "duplicate",
-          state: payment.state,
-        };
-      }
       return {
         kind: "rejected",
         state: payment.state,
@@ -84,12 +79,6 @@ export function applyPaymentEvent(
           kind: "applied",
           state: "Captured",
         };
-      if (payment.state === "Captured") {
-        return {
-          kind: "duplicate",
-          state: payment.state,
-        };
-      }
       return {
         kind: "rejected",
         state: payment.state,
@@ -102,12 +91,6 @@ export function applyPaymentEvent(
           kind: "applied",
           state: "Failed",
         };
-      if (payment.state === "Failed") {
-        return {
-          kind: "duplicate",
-          state: payment.state,
-        };
-      }
       return {
         kind: "rejected",
         state: payment.state,
