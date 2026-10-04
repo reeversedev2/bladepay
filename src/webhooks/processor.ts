@@ -108,7 +108,7 @@ export function applyPaymentEvent(
       };
 
     case "capture.failed":
-      if (payment.state === "CapturePending")
+      if (["CapturePending", "Unknown"].includes(payment.state))
         return {
           kind: "applied",
           state: "Failed",

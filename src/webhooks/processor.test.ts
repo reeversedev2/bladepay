@@ -106,5 +106,23 @@ describe("applyPaymentEvent", () => {
         reason: "Invalid Transition",
       });
     });
+
+    test.each([
+      ["authorization.succeeded", "Created"],
+      ["authorization.failed", "Authorized"],
+      ["capture.succeeded", "Failed"],
+    ] as const)("rejects %s from %s", (eventType, state) => {
+      expect(
+        applyPaymentEvent(
+          { id: paymentId, state },
+          createEvent(eventType, `invalid-${eventType}`),
+          new Set(),
+        ),
+      ).toEqual({
+        kind: "rejected",
+        state,
+        reason: "Invalid Transition",
+      });
+    });
   });
 });
