@@ -1,6 +1,6 @@
 type PaymentState =
   | "Created"
-  | "AuthrorizationPending"
+  | "AuthorizationPending"
   | "Authorized"
   | "CapturePending"
   | "Captured"
