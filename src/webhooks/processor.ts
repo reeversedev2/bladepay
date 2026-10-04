@@ -45,7 +45,7 @@ export function applyPaymentEvent(
 ): ApplyResult {
   switch (event.type) {
     case "authorization.succeeded":
-      if (payment.state === "AuthrorizationPending")
+      if (payment.state === "AuthorizationPending")
         return {
           kind: "applied",
           state: "Authorized",
@@ -62,7 +62,7 @@ export function applyPaymentEvent(
         reason: "Invalid Transition",
       };
     case "authorization.failed":
-      if (payment.state === "AuthrorizationPending")
+      if (payment.state === "AuthorizationPending")
         return {
           kind: "applied",
           state: "Failed",
