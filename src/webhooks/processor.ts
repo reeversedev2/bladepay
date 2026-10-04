@@ -14,6 +14,11 @@ type PaymentEventType =
   | "capture.succeeded"
   | "capture.failed";
 
+type Payment = {
+  id: string;
+  state: PaymentState;
+};
+
 export type PaymentEvent = {
   id: string;
   type: PaymentEventType;
@@ -35,11 +40,22 @@ type ApplyResult =
       reason: string;
     };
 
+const assertIsDuplicateEvent = () => {};
+
+const assertEventIdIsFromSamePayment = (
+  event: PaymentEvent,
+  payment: Payment,
+) => {
+  if (event.paymentId !== payment.id) {
+    return {
+      kind: "rejected",
+      state: payment.state,
+    };
+  }
+};
+
 export function applyPaymentEvent(
-  payment: {
-    id: string;
-    state: PaymentState;
-  },
+  payment: Payment,
   event: PaymentEvent,
   processedEventIds: Set<string>,
 ): ApplyResult {
@@ -49,7 +65,7 @@ export function applyPaymentEvent(
       state: payment.state,
     };
   }
-
+  assertEventIdIsFromSamePayment(event, payment);
   switch (event.type) {
     case "authorization.succeeded":
       if (payment.state === "AuthorizationPending")
